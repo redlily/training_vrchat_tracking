@@ -159,7 +159,7 @@ with mp_pose.Pose(
                 if index == 16:
                     print(f"{pose_landmark.x}, {pose_landmark.y}, {pose_landmark.z}")
                 v_pose = vr_pose.get(index)
-                if v_pose:
+                if v_pose :
                     v_pose["coordination"][0] = (pose_landmark.y * 1.0) * 1.8
                     v_pose["coordination"][1] = (-pose_landmark.x * 1.0 + 1.0) * 1.8
                     v_pose["coordination"][2] = (-pose_landmark.z * 1.0) * 1.0 #- v_pose["offset"]
