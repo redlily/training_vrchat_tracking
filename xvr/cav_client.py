@@ -39,9 +39,6 @@ def update_calibration_parameter():
     global calibration_depth_index
     calibration_depth_index = np.linalg.norm(chest - hip)
 
-    #
-    # T字ポーズをもとにVRChatの座標系に変換するための
-    #
     top = (pose_world_points[11] + pose_world_points[12]) / 2
     bottom = (pose_world_points[29] + pose_world_points[30]) / 2
 

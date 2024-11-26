@@ -28,7 +28,7 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
             landmark = pose_landmarks.landmark[i]
             world_landmark = pose_world_landmarks.landmark[i]
             if landmark.visibility:
-                pose_points[i] = np.array([landmark.x, landmark.y * (image_size[1] / image_size[0]), landmark.z],
+                pose_points[i] = np.array([landmark.x - 0.5, landmark.y - 0.5 * (image_size[1] / image_size[0]), landmark.z],
                                           dtype=np.float32)
                 pose_world_points[i] = np.array([world_landmark.x, world_landmark.y, world_landmark.z],
                                                 dtype=np.float32)
@@ -44,13 +44,14 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
 
         # ワールド座標系の座標シフト値を計算
         hip_point = (pose_points[23] + pose_points[24]) / 2
-        # hip_point[0] /= hip_depth
-        # hip_point[1] /= hip_depth
-        # hip_point[2] = hip_depth * 1.7 - 1.7
         shift_point = hip_point * calibration_scale
 
         pose_virtual_points = [calibration_matrix @ np.append(pose_world_points[i] + shift_point, 1.0)
                                for i in range(33)]
+
+        min_y = min(point[1] for point in pose_virtual_points)
+        for i in range(33):
+            pose_virtual_points[i][1] -= min_y
     else:
         pose_virtual_points = pose_world_points
 
@@ -63,11 +64,13 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
     left_hip_point = pose_virtual_points[23][:3]
     hip_point = (right_hip_point + left_hip_point) / 2
 
+    right_elbow = pose_virtual_points[14][:3]
     right_knee_point = pose_virtual_points[26][:3]
     right_ankle_point = pose_virtual_points[28][:3]
     right_heel_point = pose_virtual_points[30][:3]
     right_foot_index_point = pose_virtual_points[32][:3]
 
+    left_elbow = pose_virtual_points[15][:3]
     left_knee_point = pose_virtual_points[25][:3]
     left_ankle_point = pose_virtual_points[27][:3]
     left_heel_point = pose_virtual_points[29][:3]
@@ -92,10 +95,37 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
     # 右股の回転を計算
     right_knee_axis_y = right_hip_point - right_knee_point
     right_knee_axis_y /= np.linalg.norm(right_knee_axis_y)
-    right_knee_axis_x = np.cross(right_ankle_point - right_knee_point, right_knee_axis_y)
-    right_knee_axis_x /= np.linalg.norm(right_knee_axis_x)
+    right_knee_axis_ny = right_ankle_point - right_knee_point
+    right_knee_axis_ny /= np.linalg.norm(right_knee_axis_ny)
+    right_knee_axis_y_cos = right_knee_axis_y @ right_knee_axis_ny
+    if right_knee_axis_y_cos < -0.9:
+        # 膝がほぼ伸び切っている状態の場合、かかととつま先のベクトルと股のベクトルの外積をX軸として代替
+        right_knee_axis_x = np.cross(right_knee_axis_y, right_foot_index_point - right_heel_point)
+        right_knee_axis_x /= np.linalg.norm(right_knee_axis_x)
+    else:
+        # 膝がある程度曲がっている場外
+        right_knee_axis_x = np.cross(right_knee_axis_ny, right_knee_axis_y)
+        right_knee_axis_x /= np.linalg.norm(right_knee_axis_x)
     right_knee_axis_z = np.cross(right_knee_axis_x, right_knee_axis_y)
     pose_virtual_rotation["right_knee"] = np.array([right_knee_axis_x, right_knee_axis_y, right_knee_axis_z],
+                                                   dtype=np.float32).T
+
+    # 左股の回転を計算
+    left_knee_axis_y = left_hip_point - left_knee_point
+    left_knee_axis_y /= np.linalg.norm(left_knee_axis_y)
+    left_knee_axis_ny = left_ankle_point - left_knee_point
+    left_knee_axis_ny /= np.linalg.norm(left_knee_axis_ny)
+    left_knee_axis_y_cos = left_knee_axis_y @ left_knee_axis_ny
+    if left_knee_axis_y_cos < -0.9:
+        # 膝がほぼ伸び切っている状態の場合、かかととつま先のベクトルと股のベクトルの外積をX軸として代替
+        left_knee_axis_x = np.cross(left_knee_axis_y, left_foot_index_point - left_heel_point)
+        left_knee_axis_x /= np.linalg.norm(left_knee_axis_x)
+    else:
+        # 膝がある程度曲がっている場外
+        left_knee_axis_x = np.cross(left_knee_axis_ny, left_knee_axis_y)
+        left_knee_axis_x /= np.linalg.norm(left_knee_axis_x)
+    left_knee_axis_z = np.cross(left_knee_axis_x, left_knee_axis_y)
+    pose_virtual_rotation["left_knee"] = np.array([left_knee_axis_x, left_knee_axis_y, left_knee_axis_z],
                                                    dtype=np.float32).T
 
     # 右足首の回転を計算
@@ -107,15 +137,6 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
     pose_virtual_rotation["right_foot"] = np.array([right_foot_axis_x, right_foot_axis_y, right_foot_axis_z],
                                                    dtype=np.float32).T
 
-    # 左股の回転を計算
-    left_knee_axis_y = left_hip_point - left_knee_point
-    left_knee_axis_y /= np.linalg.norm(left_knee_axis_y)
-    left_knee_axis_x = np.cross(left_ankle_point - left_knee_point, left_knee_axis_y)
-    left_knee_axis_x /= np.linalg.norm(left_knee_axis_x)
-    left_knee_axis_z = np.cross(left_knee_axis_x, left_knee_axis_y)
-    pose_virtual_rotation["left_knee"] = np.array([left_knee_axis_x, left_knee_axis_y, left_knee_axis_z],
-                                                  dtype=np.float32).T
-
     # 左足首の回転を計算
     left_foot_axis_z = left_foot_index_point - left_heel_point
     left_foot_axis_z /= np.linalg.norm(left_foot_axis_z)
@@ -124,6 +145,11 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
     left_foot_axis_y = np.cross(left_foot_axis_z, left_foot_axis_x)
     pose_virtual_rotation["left_foot"] = np.array([left_foot_axis_x, left_foot_axis_y, left_foot_axis_z],
                                                   dtype=np.float32).T
+
+    # 右腕の回転を計算
+    right_elbow_axis_x = right_ankle_point - right_knee_point
+
+    # 左腕の回転を計算
 
 
 calibration_enabled = False
@@ -190,7 +216,7 @@ def run_analyze_pose():
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
     mp_pose = mp.solutions.pose
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
     with mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5) as pose:
@@ -225,7 +251,6 @@ LANDMARK_GROUPS = [
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
-
 
 def update_plot():
     while True:
