@@ -28,7 +28,7 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
             landmark = pose_landmarks.landmark[i]
             world_landmark = pose_world_landmarks.landmark[i]
             if landmark.visibility:
-                pose_points[i] = np.array([landmark.x - 0.5, landmark.y - 0.5 * (image_size[1] / image_size[0]), landmark.z],
+                pose_points[i] = np.array([landmark.x, landmark.y, landmark.z],
                                           dtype=np.float32)
                 pose_world_points[i] = np.array([world_landmark.x, world_landmark.y, world_landmark.z],
                                                 dtype=np.float32)
@@ -46,12 +46,15 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
         hip_point = (pose_points[23] + pose_points[24]) / 2
         shift_point = hip_point * calibration_scale
 
-        pose_virtual_points = [calibration_matrix @ np.append(pose_world_points[i] + shift_point, 1.0)
+        pose_virtual_points = [calibration_matrix @ np.append(pose_world_points[i], 1.0)
                                for i in range(33)]
 
-        min_y = min(point[1] for point in pose_virtual_points)
-        for i in range(33):
-            pose_virtual_points[i][1] -= min_y
+        # pose_virtual_points = [calibration_matrix @ np.append(pose_world_points[i] + shift_point, 1.0)
+        #                        for i in range(33)]
+
+        # min_y = min(point[1] for point in pose_virtual_points)
+        # for i in range(33):
+        #     pose_virtual_points[i][1] -= min_y
     else:
         pose_virtual_points = pose_world_points
 
@@ -213,10 +216,8 @@ def update_calibration_parameter():
 
 
 def run_analyze_pose():
-    mp_drawing = mp.solutions.drawing_utils
-    mp_drawing_styles = mp.solutions.drawing_styles
     mp_pose = mp.solutions.pose
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
     with mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5) as pose:
@@ -383,6 +384,9 @@ def send_pose_to_vrchat():
                                ((pose_virtual_points[14][:3] * 5 + pose_virtual_points[12][:3]) / 6).tolist())
     vrchat_client.send_message(vr_pose[13]["position_address"],
                                ((pose_virtual_points[13][:3] * 5 + pose_virtual_points[11][:3]) / 6).tolist())
+
+    # 頭
+    vrchat_client.send_message("/tracking/trackers/head/position", chest.tolist())
 
 
 web_app = Flask(__name__)

@@ -63,7 +63,7 @@ MediaPipeとはGoogleが開発しているアプリケーションに人工知�
 
 今回のWEBカメラによるフルボディートラッキングの実装に必要となる機能は、その中の姿勢ランドマーク検出機能が必要になるのでそちらを利用します。こちら、静止画や動画の画像からニューラルネットワークの推定により **33個所の身体のランドマーク** を割り出す事が出来る機能になります。
 
-<img src="./assets/33箇所のランドマーク.png" width="250px">
+<img src="./assets/33箇所のランドマーク.png" width="500px">
 
 画像参照：[姿勢ランドマーク検出ガイド  |  Google AI Edge  |  Google AI for Developers](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker?hl=ja)
 
@@ -104,21 +104,19 @@ VRChatでは上記のような仕様が公開されており、ここにはア�
 /tracking/trackers/head/rotation
 ```
 
-これらのアドレスに対し3つのX, Y, Zの順番でfloat値を入力します。
-
-positionがトラッカーのワールド座標系での位置でrotationがトラッカーのワールド座標系での回転角 (オイラー角) となり各ボーンのローカルの位置や回転角でないので注意が必要です。サポートされている部位としては腰、胸、足✕2、股✕2、肘✕2となります。
-
-1から8の番号のどの番号がどの部位になるのかは決まっておらずVRChatでキャリブレーションされた際にOSCにより入力された座標とVRChatのアバターのトラッカーに追従する部位が自動的に対応付けられるので、どの番号にどの部位を割り当てるかはアプリケーションの任意で大丈夫です。
-
-headに関してはVRChat内での位置調整に使用されるとのこと。(未検証)
-
-#### トラッカーの仕様
+これらのアドレスに対し3つのX, Y, Zの順番でfloat値を入力します。これらの値の仕様としては下記のようになります。
 
 - 基本的にUnityの座標系になる
 - +Yが上
 - 1.0の数値を1mとする
 - 左手座標系
 - 回転はオイラー角となりオイラー角はY, X, Zの順番で適用される
+
+positionがトラッカーのワールド座標系での位置でrotationがトラッカーのワールド座標系での回転角 (オイラー角) となり各ボーンのローカルの位置や回転角でないので注意が必要です。サポートされている部位としては腰、胸、足✕2、股✕2、肘✕2となります。
+
+1から8のどの番号がどの部位になるのかは決まっておらずVRChatでキャリブレーションされた際にOSCにより入力された座標とVRChatのアバターのトラッカーに追従する部位が自動的に対応付けられるので、どの番号にどの部位を割り当てるかはアプリケーションの任意で大丈夫となります。
+
+またheadの位置、回転角に関しては入力があれば、その数値を元にトラッカーの座標、回転角の数値をシフトさせてくれる仕様になっています。
 
 ### その他のライブラリ、フレームワーク
 
@@ -145,11 +143,13 @@ headに関してはVRChat内での位置調整に使用されるとのこと。(
 
 ## 実装
 
-### WEBカメラからの画像取得と姿勢ランドマークのプロット
+### WEBカメラからの画像取得と姿勢ランドマークをカメラ画像の上にプロット
 
 https://github.com/google-ai-edge/mediapipe/blob/master/docs/solutions/pose.md
 
-上記のサンプルプログラムから必要な部分を抜粋しました。こちら非常に簡単なプログラムとなっており、たった、これだけのソースコードでWEBカメラから動画データの取得を行い、MediaPipeに画像データを入力、推定された姿勢ランドマークを元の動画データにプロットし、その結果をウィンドウで確認できるプログラムとなっています。
+上記のサンプルプログラムから必要な部分を抜粋しました。
+
+こちら非常に簡単なプログラムとなっており、たった、これだけのソースコードでWEBカメラから動画データの取得を行い、MediaPipeに画像データを入力、推定された姿勢ランドマークを元の動画データにプロットし、その結果をウィンドウで確認できるプログラムとなっています。
 
 ```Python
 import cv2
@@ -192,4 +192,159 @@ with mp_pose.Pose(
 cap.release()
 ```
 
+このプログラムでWEBカメラを用いて撮影する素材として下記のフィギュアを使用します。
 
+<img src="./assets/使用する人素材.jpg" width="500px">
+
+このフィギュアに対しWEBカメラで撮影した画像にランドマークをプロットすると下記のような結果を得ることが出来ます。
+
+<img src="./assets/カメラ画像にプロット.png" width="500px">
+
+このプログラムの中で推定された姿勢ランドマーク等の結果が収納される箇所は下記の箇所になります。
+
+```Python
+results = pose.process(image)
+```
+
+このresultsのデータ構造が下記のようになります。
+
+```
+PoseLandmarkerResult:
+  Landmarks:
+    Landmark #0:
+      x            : 0.638852
+      y            : 0.671197
+      z            : 0.129959
+      visibility   : 0.9999997615814209
+      presence     : 0.9999984502792358
+    Landmark #1:
+      x            : 0.634599
+      y            : 0.536441
+      z            : -0.06984
+      visibility   : 0.999909
+      presence     : 0.999958
+    ... (33 landmarks per pose)
+  WorldLandmarks:
+    Landmark #0:
+      x            : 0.067485
+      y            : 0.031084
+      z            : 0.055223
+      visibility   : 0.9999997615814209
+      presence     : 0.9999984502792358
+    Landmark #1:
+      x            : 0.063209
+      y            : -0.00382
+      z            : 0.020920
+      visibility   : 0.999976
+      presence     : 0.999998
+    ... (33 world landmarks per pose)
+  SegmentationMasks:
+    ... (pictured below)
+```
+
+取得できる姿勢ランドマークは二種類あり **正規化された座標である、Landmarks** と **ワールド座標である、WorldLanmarks** になり特性は下記のようになります。
+
+正規化された座標 (Landmarks)
+
+- x, y は 0.0 ～ 1.0の範囲で正規化された値、画像の幅と高さので正規化されます。つまりカメラの画像の座標と対応付けられる値になります。
+- zは腰を中心として値が小さいほどカメラに近く、値が大きいほどカメラから遠ざかる値になります。スケールに関してはxとほぼ同じスケールが使用されます。
+
+ワールド座標 (WorldLanmarks)
+
+- x, y, z は腰を原点とした実世界の座標 (メートル単位) の値となります。
+
+Landmarksはカメラから見たランドマークの相対的な座標になりWorldLandmarkも腰を中心としたランドマークの相対的な座標になります。これらの特性を理解したうえでこれらの座標データをVRChat用のデータとして加工した上で転送する処理を実装する必要があります。
+
+### 姿勢ランドマークをMatplotlibで3Dでプロット
+
+MediaPipeで取得したランドマークをVRChat用の座標に変換する前に3D空間にボーンをテロップしたほうが震度情報 (z値) の確認もしやすく、VRChat用の座標変換のイメージも湧きやすくなると思います。
+
+使用するライブラリとしてはMatplotlibというグラフ描画用のライブラリを使用し描画を行います。
+
+```Python
+pose_points = [np.array([0, 0, 0], dtype=np.float32) for i in range(33)]
+pose_world_points = [np.array([0, 0, 0], dtype=np.float32) for i in range(33)]
+
+# 姿勢の更新
+def update_pose(pose_landmarks, pose_world_landmarks):
+    if pose_landmarks is not None:
+        for i in range(33):
+            landmark = pose_landmarks.landmark[i]
+            world_landmark = pose_world_landmarks.landmark[i]
+            if landmark.visibility:
+                pose_points[i] = np.array([landmark.x, landmark.y, landmark.z], dtype=np.float32)
+                pose_world_points[i] = np.array([world_landmark.x, world_landmark.y, world_landmark.z], dtype=np.float32)
+
+# 姿勢の解析
+def run_analyze_pose():
+    mp_pose = mp.solutions.pose
+    cap = cv2.VideoCapture(0)
+    with mp_pose.Pose(
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5) as pose:
+        while cap.isOpened():
+            success, image = cap.read()
+            if not success:
+                print("Ignoring empty camera frame.")
+                # If loading a video, use 'break' instead of 'continue'.
+                continue
+
+            image.flags.writeable = False
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            results = pose.process(image)
+
+            if results.pose_landmarks and results.pose_world_landmarks:
+                update_pose(results.pose_landmarks, results.pose_world_landmarks)
+
+        cap.release()
+
+LANDMARK_GROUPS = [
+    [8, 6, 5, 4, 0, 1, 2, 3, 7],  # 目
+    [10, 9],  # 口
+    [11, 13, 15, 17, 19, 15, 21],  # 右手
+    [11, 23, 25, 27, 29, 31, 27],  # 右ボディー
+    [12, 14, 16, 18, 20, 16, 22],  # 左手
+    [12, 24, 26, 28, 30, 32, 28],  # 左ボディー
+    [11, 12],  # 型
+    [23, 24],  # 腰
+]
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="3d")
+
+# プロットの更新
+def update_plot():
+    while True:
+        ax.cla()
+
+        if calibration_enabled:
+            ax.set_xlim3d(-1, 1)
+            ax.set_ylim3d(-1, 1)
+            ax.set_zlim3d(0, 2)
+        else:
+            ax.set_xlim3d(-1, 1)
+            ax.set_ylim3d(-1, 1)
+            ax.set_zlim3d(1, -1)
+
+        for group in LANDMARK_GROUPS:
+            x = [pose_points[i][0] for i in group]
+            y = [pose_points[i][1] for i in group]
+            z = [pose_points[i][2] for i in group]
+
+            ax.plot(x, z, y)
+
+        plt.pause(0.05)
+
+def run_analyze_pose():
+
+
+if __name__ == '__main__':
+    threading.Thread(target=run_analyze_pose).start()
+    update_plot()
+```
+
+これを実行した結果が下記のようになります。
+
+<img src="./assets/3次元プロット.png" width="500px">
+
+こちらのプログラムですが描画はメインスレッド、WEBカメラでの撮影と姿勢の推定は別のスレッドで処理していてランドマークの位置の変数を排他制御なしにアクセスしていますが厳密な描画を求めていないので、その実装は省略しています。

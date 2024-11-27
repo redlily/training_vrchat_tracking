@@ -132,7 +132,7 @@ def web_task():
 web_thread = threading.Thread(target=web_task)
 web_thread.start()
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 with mp_pose.Pose(
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5) as pose:
