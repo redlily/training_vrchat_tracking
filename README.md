@@ -1,4 +1,4 @@
-# VRChat用のフルトラをMediaPipeでHello World
+# VRChat用のフルトラをWEBカメラとMediaPipeで作ってみた
 
 ## 概要
 
@@ -53,7 +53,7 @@ Amazonで2000円程度で売られている格安のWEBカメラ
 
 [MediaPipe ソリューション ガイド  |  Google AI Edge  |  Google AI for Developers](https://ai.google.dev/edge/mediapipe/solutions/guide?hl=ja)
 
-MediaPipeとはGoogleが開発しているアプリケーションに人工知能 (AI) と機械学習 (ML) 用のライブラリとツール群になります。オブジェクト検知、画像分類、ジェスチャー認識、手、顔、姿勢等のランドマーク検出等の画像に関するものやテキスト分類、言語検出等のテキストに関するもの、音声に関するもの、画像生成やLLM推論等の生成AIに関するもの等、様々な機能を有するライブラリ、ツール群となっています。
+**MediaPipeとはGoogleが開発しているアプリケーションに人工知能 (AI) と機械学習 (ML) 用のライブラリとツール群**になります。オブジェクト検知、画像分類、ジェスチャー認識、手、顔、姿勢等のランドマーク検出等の画像に関するものやテキスト分類、言語検出等のテキストに関するもの、音声に関するもの、画像生成やLLM推論等の生成AIに関するもの等、様々な機能を有するライブラリ、ツール群となっています。
 
 [姿勢ランドマーク検出ガイド  |  Google AI Edge  |  Google AI for Developers](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker?hl=ja)
 
@@ -69,7 +69,7 @@ MediaPipeとはGoogleが開発しているアプリケーションに人工知�
 
 ### VRChatとOSC (Open Sound Control)
 
-OSC (Open Sound Control) とは電子楽器やコンピュータなどの機器においてそのデータをネットワーク経由でリアルタイムに送受信するためのプロトコルです。しかしその汎用性から、しばしばサウンド関係以外のアプリケーションでも使用される事があるらしいです。
+**OSC (Open Sound Control) とは電子楽器やコンピュータなどの機器においてそのデータをネットワーク経由でリアルタイムに送受信するためのプロトコル**です。しかしその汎用性から、しばしばサウンド関係以外のアプリケーションでも使用される事があるらしいです。
 
 [VRChat - OSC Overview](https://docs.vrchat.com/docs/osc-overview)
 
@@ -77,7 +77,7 @@ VRChatでは上記のような仕様が公開されており、ここにはア�
 
 [VRChat - OSC Trackers](https://docs.vrchat.com/docs/osc-trackers)
 
-ここに定義されている仕様を読む限りではOSC経由でのVRChatのフルボディートラッキングは8点トラッキングになります。
+ここに定義されている仕様を読む限りでは**OSC経由でのVRChatのフルボディートラッキングは8点トラッキング**になります。VRヘッドセットとコントローラ、そして、このOSC経由のトラッキングにより最大11点トラッキングとなります。
 
 仕様を要約すると下記のようになります。
 
@@ -142,6 +142,34 @@ positionがトラッカーのワールド座標系での位置でrotationがト�
   - アプリケーションを作る上で必要なUIを作成するのが手間だったのでWeb APIで簡易的なインタフェースを作成するために使用
 
 ## 実装
+
+今回、WEBカメラを用いたVRChat用のボディーフルトラッキングのサンプルプログラムはこちらになります。
+
+https://github.com/redlily/training_vrchat_tracking
+
+開発環境
+
+- Python 3.12
+- Poetry
+
+実行方法
+
+```Python
+$ poetry install
+$ poetry run python xvr/vr_chat_client.py
+```
+
+使い方
+
+1. このサンプルアプリを起動します。
+1. WEBカメラの画角内に入り棒立ちします。  
+このときカメラに向かって正対している事が望ましいです。
+1. VRヘッドセットを装着しVRChatを起動します。
+1. VRChat内でOSCを有効化します。
+1. VRヘッドセットからリモートデスクトップからブラウザーを起動、またはヘッドセット内のブラウザーを起動してカメラキャリブレーション用のURLにアクセスしてキャリブレーションをおこないます。  
+サンプルアプリとブラウザが同一マシーンで動作しているなら http://127.0.0.1:5000/calibration にアクセスし異なる場合はURLのIPアドレス部分を正しいものに書き換えてアクセスします。
+1. VRChat内でもキャリブレーションを行います。  
+IKポイントの位置に問題がある場合は **OSC トラッカー を中央に配置** を実行してみてください。
 
 ### WEBカメラからの画像取得と姿勢ランドマークをカメラ画像の上にプロット
 
@@ -262,11 +290,14 @@ MediaPipeで取得したランドマークをVRChat用の座標に変換する�
 使用するライブラリとしてはMatplotlibというグラフ描画用のライブラリを使用し描画を行います。
 
 ```Python
-pose_points = [np.array([0, 0, 0], dtype=np.float32) for i in range(33)]
+# 腰を原点としたワールド座情系のポーズ座標
 pose_world_points = [np.array([0, 0, 0], dtype=np.float32) for i in range(33)]
 
-# 姿勢の更新
+
 def update_pose(pose_landmarks, pose_world_landmarks):
+    """
+    ポーズの更新を行う
+    """
     if pose_landmarks is not None:
         for i in range(33):
             landmark = pose_landmarks.landmark[i]
@@ -275,8 +306,11 @@ def update_pose(pose_landmarks, pose_world_landmarks):
                 pose_points[i] = np.array([landmark.x, landmark.y, landmark.z], dtype=np.float32)
                 pose_world_points[i] = np.array([world_landmark.x, world_landmark.y, world_landmark.z], dtype=np.float32)
 
-# 姿勢の解析
+
 def run_analyze_pose():
+    """
+    ポーズの解析を行う
+    """
     mp_pose = mp.solutions.pose
     cap = cv2.VideoCapture(0)
     with mp_pose.Pose(
@@ -298,13 +332,13 @@ def run_analyze_pose():
 
         cap.release()
 
-LANDMARK_GROUPS = [
+landmark_groups = [
     [8, 6, 5, 4, 0, 1, 2, 3, 7],  # 目
     [10, 9],  # 口
     [11, 13, 15, 17, 19, 15, 21],  # 右手
-    [11, 23, 25, 27, 29, 31, 27],  # 右ボディー
+    [11, 23, 25, 27, 29, 31, 27],  # 右半身
     [12, 14, 16, 18, 20, 16, 22],  # 左手
-    [12, 24, 26, 28, 30, 32, 28],  # 左ボディー
+    [12, 24, 26, 28, 30, 32, 28],  # 左半身
     [11, 12],  # 型
     [23, 24],  # 腰
 ]
@@ -312,8 +346,11 @@ LANDMARK_GROUPS = [
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
-# プロットの更新
+
 def update_plot():
+    """
+    プロットの更新を行う
+    """
     while True:
         ax.cla()
 
@@ -326,7 +363,7 @@ def update_plot():
             ax.set_ylim3d(-1, 1)
             ax.set_zlim3d(1, -1)
 
-        for group in LANDMARK_GROUPS:
+        for group in landmark_groups:
             x = [pose_points[i][0] for i in group]
             y = [pose_points[i][1] for i in group]
             z = [pose_points[i][2] for i in group]
@@ -334,8 +371,6 @@ def update_plot():
             ax.plot(x, z, y)
 
         plt.pause(0.05)
-
-def run_analyze_pose():
 
 
 if __name__ == '__main__':
@@ -348,3 +383,201 @@ if __name__ == '__main__':
 <img src="./assets/3次元プロット.png" width="500px">
 
 こちらのプログラムですが描画はメインスレッド、WEBカメラでの撮影と姿勢の推定は別のスレッドで処理していてランドマークの位置の変数を排他制御なしにアクセスしていますが厳密な描画を求めていないので、その実装は省略しています。
+
+### 姿勢ランドマークをVRChatに送信する
+
+#### 座標変換
+
+MediaPipeから出力される座標データをそのままVRChatに送信してもそのデータは上手くVRChatに反映されません。MediaPipeの座標データをそのまま送信した場合、VRChat内でキャリブレーションを行おうとした場合にIK用のポイントが下の画像のように全く意図しない場所に表示されます。
+
+<img src="./assets/キャリブレーション失敗.png" width="500px">
+
+それらの要因としては2つあります。
+
+まず1つ目は **MediaPipeのWorldLandmarkの座標系は+Yが上方向、+Zが手前方向、+Xが右方向の右手座標系** となり対して **VRChatの標系はUnityと同様の+Yが上方向、+Zが手前方向、+Xが左方向の左手座標系** になるのでX軸の符号を入れ替える変換が必要になります。
+
+そして2つ目はカメラが撮影対象を見上げたり見下ろしたりするように配置したり、カメラを90度、傾けたりもしくは上下逆さまなような配置を行った場合にはWorldLandmarkで出力されてくる姿勢ランドマークの座標も、そのカメラの傾きそれに従って回転するのでこれを補正する必要があります。
+
+<img src="./assets/座標補正.png" width="500px">
+
+それらの座標を補正する下記のような実装を行います。
+
+```Python
+# 腰を原点としたワールド座情系のポーズ座標
+pose_world_points = [np.array([0, 0, 0], dtype=np.float32) for i in range(33)]
+
+# 補正されたVRC用の座標系のポーズ座標
+pose_virtual_points = [np.array([0, 0, 0], dtype=np.float32) for i in range(33)]
+
+
+def update_pose(pose_landmarks, pose_world_landmarks, image_size):
+    """
+    ポーズの更新を行う
+    """
+    if pose_landmarks is not None:
+        for i in range(33):
+            landmark = pose_landmarks.landmark[i]
+            world_landmark = pose_world_landmarks.landmark[i]
+            if landmark.visibility:
+                pose_points[i] = np.array(
+                    [landmark.x - 0.5, (landmark.y - 0.5) * (image_size[1] / image_size[0]), landmark.z],
+                    dtype=np.float32)
+                pose_world_points[i] = np.array([world_landmark.x, world_landmark.y, world_landmark.z],
+                                                dtype=np.float32)
+
+    global pose_virtual_points
+    if calibration_enabled:
+        pose_virtual_points = [calibration_matrix @ np.append(pose_world_points[i], 1.0) for i in range(33)]
+        modify_virtual_pose()
+    else:
+        pose_virtual_points = pose_world_points
+
+
+# 座標補正の行列
+calibration_matrix = np.eye(4, dtype=np.float32)
+
+def update_calibration_parameter():
+    global calibration_enabled
+    calibration_enabled = True
+
+    top_point = (pose_world_points[7] + pose_world_points[8]) / 2
+    bottom_point = (pose_world_points[29] + pose_world_points[30]) / 2
+
+    # Y軸傾きの補正値算出
+    y_axis = np.array([0, 1, 0], dtype=np.float32)
+    y_slop = (top_point - bottom_point) / np.linalg.norm(top_point - bottom_point)
+    y_slop_cos = y_axis @ y_slop
+    y_slop_axis = np.cross(y_slop, y_axis)
+    y_slop_sin = np.linalg.norm(y_slop_axis)
+    y_slop_axis /= y_slop_sin
+    ys_x, ys_y, ys_z = y_slop_axis
+    ys_c = y_slop_cos
+    ys_s = y_slop_sin
+    ys_t = 1.0 - ys_c
+    y_slop_mat = np.eye(4, dtype=np.float32)
+    y_slop_mat[:3, :3] = np.array([
+        [ys_t * ys_x * ys_x + ys_c, ys_t * ys_x * ys_y - ys_s * ys_z, ys_t * ys_x * ys_z + ys_s * ys_y],
+        [ys_t * ys_x * ys_y + ys_s * ys_z, ys_t * ys_y * ys_y + ys_c, ys_t * ys_y * ys_z - ys_s * ys_x],
+        [ys_t * ys_x * ys_z - ys_s * ys_y, ys_t * ys_y * ys_z + ys_s * ys_x, ys_t * ys_z * ys_z + ys_c]
+    ], dtype=np.float32)
+
+    # 座標系変換
+    modify_coordination_system_mat = np.eye(4, dtype=np.float32)
+    modify_coordination_system_mat[0, 0] = -1
+
+    global calibration_matrix
+    calibration_matrix = modify_coordination_system_mat @ y_slop_mat
+```
+
+実装内容としてはカメラを設置し撮影対象者に基準となる場所に棒立ちしてもらい、その段階でupdate_calibration_parameterメソッドの呼び出しを行い撮影対象者を基準としてカメラの傾きを補正するような処理内容となります。そしてupdate_poseメソッド内でMediaPipeから受け取った座標に対し座標補正をかける処理となります。
+
+<img src="./assets/キャリブレーション成功.png" width="500px">
+
+このときupdate_calibration_parameterメソッドをVRヘッドセットを被ったままでもVRヘッドセットのWebブラウザーやリモートデスクトップのブラウザを用いて呼び出しやすいようにするためFlaskを使用して、このメソッドを呼び出すWeb APIを用意しWebブラウザーを通じて呼び出し出来るようにしておきます。
+
+```Python
+web_app = Flask(__name__)
+
+
+@web_app.route("/calibration")
+def web_calibration():
+    update_calibration_parameter()
+    return "Success"
+
+def run_flask():
+    web_app.run(debug=True, use_reloader=False)
+
+
+if __name__ == '__main__':
+    threading.Thread(target=run_flask).start()
+```
+
+このプログラムとWebブラウザーが同一マシーン上で動作している場合は `http://127.0.0.1:5000/calibration` 、異なる場合でも適切なIPアドレスで上記のWeb APIにアクセスすることによりupdate_calibration_parameterメソッドを実行出来るようになります。
+
+<img src="./assets/Webブラウザからカメラのキャリブレーション.png" width="500px">
+
+#### 回転パラメータの必要性
+
+このVRChat用のOSCパラメータですが座標 (位置) パラメータだけでもトラッキングデータとしてアバターを動かすことが出来ます。
+
+それならなぜ回転パラメータが必要なのか？このパラメータを欠落させると何が起こるのか？それは回転パラメータがない状態だとトラッキングと紐付いているアバターの各パーツが上面の方向に固定されてしまうので現実世界で肩の向き、腰の向き、足の向き、腕の向きを変えても回転パラメータが欠落しているので大変不自然な動きとなってしまいます。
+
+<img src="./assets/回転パラメータなし.png" width="350px">
+
+しかしMediaPipeには体の各パーツの向きや回転等の情報は全く含まれていません。そこで、それらのパラメータはMediaPipeが算出したランドマークの情報から算出する必要があります。
+
+実装方法の例としては関節の曲がり具合から外積、内積、正規化を駆使して各パーツのローカルなX軸, Y軸, Z軸の直行するベクトルを算出、それ各パーツのローカルな回転行列として、そこからZ, X, Yのオーダーのオイラー角に変換するといった処理になります。
+
+<img src="./assets/回転行列の算出.png" width="350px">
+
+細かい実装は長くなるのでサンプルを参照してください。
+
+また、細かい回転パラメータのズレはVRChatのキャリブレーションの際にオフセットされるようです。
+
+#### OSCによるVRChatへのデータ送信処理
+
+OSCによるVRChatへの姿勢データの送信の実装は `python-osc` を用いて実装を行います。
+
+送信先のIPアドレスはSteam版やQuest Link版のVRChatを使用している場合は **127.0.0.1** の **9000番** ポートに向けて送信し、Quest単体版のVRChatを使用している場合はQuestが接続しているWi-FiのIPアドレスを調べ、そのアドレスの9000番ポートに送信を行います。
+
+```Python
+# VRChatに転送するトランスフォーム情報
+pose_virtual_transforms = {
+    "head": {
+        "path": "head",
+        "enable": True,
+        "position": np.array([0, 0, 0], dtype=np.float32), # 位置
+        "rotation": np.eye(3, dtype=np.float32), # 回転行列
+    },
+    "chest": {
+      ...略
+    }
+    "hip": {
+      ...略
+    }
+    ...略
+}
+
+# VRChat用のOSCクライアント
+vrchat_client = udp_client.SimpleUDPClient("127.0.0.1", 9000)
+
+
+def send_pose_to_vrchat():
+    """
+    VRChatにポーズを送信する
+    """
+    for key in pose_virtual_transforms:
+        value = pose_virtual_transforms[key]
+        if value["enable"]:
+            position = value["position"]
+            
+            rotation_mat = value["rotation"]
+            rotation_rot = Rotation.from_matrix(rotation_mat)
+            rotation_zxy = rotation_rot.as_euler("zxy", degrees=True)
+            
+            vrchat_client.send_message(
+                f"/tracking/trackers/{value["path"]}/position",
+                position.tolist())
+            vrchat_client.send_message(
+                f"/tracking/trackers/{value["path"]}/rotation",
+                [rotation_zxy[1], rotation_zxy[2], rotation_zxy[0]])
+```
+
+## あとがき
+
+WEBカメラとMediaPipeを使用したある程度、VRChat上で動作する実装解説はいかがだったでしょうか？
+
+この記事の筆者である私ですが1ヶ月ほど前に友人宅で初めてMeta Quest3でVRChatを触らせていただき、その自由さと没入感に感銘を受けて自分でもQuest3を購入しVRChatに没頭していきました。
+
+しかし、このアプリに慣れてくるとVRヘッドセットとコントローラの3点トラッキングでは思ったほど体を自由に動かせず、より自由に体を動かしてみたいと欲が出てき始めトラッキングツールを探し始めたのですが有名どころのトラッカーも中々良いお値段し躊躇ってしまったわけです。
+
+そこで代替出来る安価なトラッキングツールを探していたところ精度は悪いもののMediaPipeとWEBカメラでVRChat用のボディーフルトラッキングを見つけました。これを見て「これなら私でも作れるのでは？」と思い立って作ったのが始まりです。
+
+技術調査も兼ねて最低限ではあるものの、ある程度、 (WEBカメラのトラッキングにしては) 精度良く動作するサンプルプログラムが出来上がった段階で、そのノウハウを記事化したくもなったので、その記録をこの記事として残します。
+
+今後は、このノウハウを礎に誰もが使えるようにPCアプリ化し配布したり、Android, iOSアプリへの移植し配布したり、アルゴリズムの改修による精度やパフォーマンスの向上を行っていき、私のようなVRChatのフルトラ難民を救っていきたいなと思う所存ですｗ
+
+## 参考
+
+- [MediaPipe ソリューション ガイド  |  Google AI Edge  |  Google AI for Developers](https://ai.google.dev/edge/mediapipe/solutions/guide?hl=ja)
+- [VRChat - OSC Overview](https://docs.vrchat.com/docs/osc-overview)

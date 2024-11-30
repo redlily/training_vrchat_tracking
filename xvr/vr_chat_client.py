@@ -51,13 +51,13 @@ pose_virtual_transforms = {
     },
     "right_knee": {
         "path": "5",
-        "enable": False,
+        "enable": True,
         "position": np.array([0, 0, 0], dtype=np.float32),
         "rotation": np.eye(3, dtype=np.float32),
     },
-    "reft_knee": {
+    "left_knee": {
         "path": "6",
-        "enable": False,
+        "enable": True,
         "position": np.array([0, 0, 0], dtype=np.float32),
         "rotation": np.eye(3, dtype=np.float32),
     },
@@ -94,11 +94,26 @@ def update_pose(pose_landmarks, pose_world_landmarks, image_size):
     global pose_virtual_points
     if calibration_enabled:
         pose_virtual_points = [calibration_matrix @ np.append(pose_world_points[i], 1.0) for i in range(33)]
+        modify_virtual_pose()
     else:
         pose_virtual_points = pose_world_points
 
     update_virtual_pose()
 
+def modify_virtual_pose():
+    """
+    VRC用のポーズの補正を行う
+    """
+
+    # 胴体の長さの補正
+    chest = (pose_virtual_points[11] + pose_virtual_points[12]) / 2
+    hip = (pose_virtual_points[23] + pose_virtual_points[24]) / 2
+    body_vector = hip - chest
+    body_length = np.linalg.norm(body_vector)
+    body_differential_length = calibration_body_length - body_length
+    body_modify_length = (body_vector / body_length) * body_differential_length
+    for i in range(23, 33):
+        pose_virtual_points[i] += body_modify_length
 
 def update_virtual_pose():
     """
@@ -159,16 +174,16 @@ def update_virtual_pose():
     pose_virtual_transforms["hip"]["rotation"] = np.array([hip_axis_x, hip_axis_y, hip_axis_z], dtype=np.float32).T
     pose_virtual_transforms["hip"]["position"] = hip_position
 
-    # 右腕の回転を計算
+    # 右肘の回転を計算
     right_elbow_axis_x = right_elbow_position - right_shoulder_position
     right_elbow_axis_x /= np.linalg.norm(right_elbow_axis_x)
     right_wrist_axis_x = right_wrist_position - right_elbow_position
     right_wrist_axis_x /= np.linalg.norm(right_wrist_axis_x)
     if right_elbow_axis_x @ right_wrist_axis_x > 0.9:
-        # 腕がほとんど伸び切っている場合、手のひらの向きを腕のY軸ベクトルとして代替
+        # 肘がほとんど伸び切っている場合、手のひらの向きを腕のY軸ベクトルとして代替
         right_elbow_axis_y = np.cross(pose_virtual_points[20][:3], pose_virtual_points[18][:3])
     else:
-        # 腕が曲がっている場合
+        # 肘が曲がっている場合
         right_elbow_axis_y = np.cross(right_wrist_axis_x, right_elbow_axis_x)
     right_elbow_axis_z = np.cross(right_elbow_axis_x, right_elbow_axis_y)
     right_elbow_axis_z /= np.linalg.norm(right_elbow_axis_z)
@@ -177,16 +192,16 @@ def update_virtual_pose():
         [right_elbow_axis_x, right_elbow_axis_y, right_elbow_axis_z], dtype=np.float32).T
     pose_virtual_transforms["right_elbow"]["position"] = (right_elbow_position * 3 + right_shoulder_position) / 4
 
-    # 左腕の回転を計算
+    # 左肘の回転を計算
     left_elbow_axis_x = left_shoulder_position - left_elbow_position
     left_elbow_axis_x /= np.linalg.norm(left_elbow_axis_x)
     left_wrist_axis_x = left_elbow_position - left_wrist_position
     left_wrist_axis_x /= np.linalg.norm(left_wrist_axis_x)
     if left_elbow_axis_x @ left_wrist_axis_x > 0.9:
-        # 腕がほとんど伸び切っている場合、手のひらの向きを腕のY軸ベクトルとして代替
+        # 肘がほとんど伸び切っている場合、手のひらの向きを腕のY軸ベクトルとして代替
         left_elbow_axis_y = np.cross(pose_virtual_points[17][:3], pose_virtual_points[19][:3])
     else:
-        # 腕が曲がっている場合
+        # 肘が曲がっている場合
         left_elbow_axis_y = np.cross(left_elbow_axis_x, left_wrist_axis_x)
     left_elbow_axis_z = np.cross(left_elbow_axis_x, left_elbow_axis_y)
     left_elbow_axis_z /= np.linalg.norm(left_elbow_axis_z)
@@ -217,6 +232,40 @@ def update_virtual_pose():
         [left_foot_axis_x, left_foot_axis_y, left_foot_axis_z], dtype=np.float32).T
     pose_virtual_transforms["left_foot"]["position"] = left_ankle_position
 
+    # 右膝の回転を計算
+    right_knee_axis_y = right_hip_position - right_knee_position
+    right_knee_axis_y /= np.linalg.norm(right_knee_axis_y)
+    right_ankle_axis_y = right_knee_position - right_ankle_position
+    right_ankle_axis_y /= np.linalg.norm(right_ankle_axis_y)
+    if right_knee_axis_y @ right_ankle_axis_y > 0.9:
+        # 膝がほとんど伸び切っている場合、つま先の向きからX軸ベクトルを算出
+        right_knee_axis_x = right_foot_axis_x
+    else:
+        # 膝が曲がっている場合
+        right_knee_axis_x = np.cross(right_knee_axis_y, right_ankle_axis_y)
+        right_knee_axis_x /= np.linalg.norm(right_knee_axis_x)
+    right_knee_axis_z = np.cross(right_knee_axis_x, right_knee_axis_y)
+    pose_virtual_transforms["right_knee"]["rotation"] = np.array(
+        [right_knee_axis_x, right_knee_axis_y, right_knee_axis_z], dtype=np.float32).T
+    pose_virtual_transforms["right_knee"]["position"] = right_knee_position
+
+    # 左膝の回転を計算
+    left_knee_axis_y = left_hip_position - left_knee_position
+    left_knee_axis_y /= np.linalg.norm(left_knee_axis_y)
+    left_ankle_axis_y = left_knee_position - left_ankle_position
+    left_ankle_axis_y /= np.linalg.norm(left_ankle_axis_y)
+    if left_knee_axis_y @ left_ankle_axis_y > 0.9:
+        # 膝がほとんど伸び切っている場合、つま先の向きからX軸ベクトルを算出
+        left_knee_axis_x = left_foot_axis_x
+    else:
+        # 膝が曲がっている場合
+        left_knee_axis_x = np.cross(left_knee_axis_y, left_ankle_axis_y)
+        left_knee_axis_x /= np.linalg.norm(left_knee_axis_x)
+    left_knee_axis_z = np.cross(left_knee_axis_x, left_knee_axis_y)
+    pose_virtual_transforms["left_knee"]["rotation"] = np.array(
+        [left_knee_axis_x, left_knee_axis_y, left_knee_axis_z], dtype=np.float32).T
+    pose_virtual_transforms["left_knee"]["position"] = left_knee_position
+
 
 # キャリブレーションが行われているかどうか
 calibration_enabled = False
@@ -224,10 +273,18 @@ calibration_enabled = False
 # 座標補正の行列
 calibration_matrix = np.eye(4, dtype=np.float32)
 
+# 胸から腰までの長さ
+calibration_body_length = 1.0
+
 
 def update_calibration_parameter():
     global calibration_enabled
     calibration_enabled = True
+
+    # 体の部位の計測
+    global calibration_body_length
+    calibration_body_length = np.linalg.norm(
+        (pose_world_points[11] + pose_world_points[12]) / 2 - (pose_world_points[23] + pose_world_points[24]) / 2)
 
     top_point = (pose_world_points[7] + pose_world_points[8]) / 2
     bottom_point = (pose_world_points[29] + pose_world_points[30]) / 2
